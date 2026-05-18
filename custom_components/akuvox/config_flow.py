@@ -228,8 +228,9 @@ class AkuvoxFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
                         self.data["token"] = self.akuvox_api_client._data.token
                         self.data["refresh_token"] = self.akuvox_api_client._data.refresh_token
 
-                    # Retrieve connected device data
-                    await self.akuvox_api_client.async_retrieve_user_data()
+                    # Retrieve connected device data using the already validated token pair.
+                    await self.akuvox_api_client.async_retrieve_device_data()
+                    await self.akuvox_api_client.async_retrieve_temp_keys_data()
                     devices_json = self.akuvox_api_client.get_devices_json()
                     self.data.update(devices_json)
 

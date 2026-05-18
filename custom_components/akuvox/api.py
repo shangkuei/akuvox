@@ -148,6 +148,13 @@ class AkuvoxApiClient:
                 refresh_token=refresh_token, # type: ignore
                 phone_number=phone_number, # type: ignore
                 country_code=country_code) # type: ignore
+        else:
+            self._data.host = host if host is not None else self._data.host
+            self._data.subdomain = subdomain if subdomain is not None else self._data.subdomain
+            self._data.auth_token = auth_token if auth_token is not None else self._data.auth_token
+            self._data.token = token if token is not None else self._data.token
+            self._data.refresh_token = refresh_token if refresh_token is not None else self._data.refresh_token
+            self._data.phone_number = phone_number if phone_number is not None else self._data.phone_number
         self.hass = self.hass if self.hass else hass
 
     ####################
@@ -311,8 +318,9 @@ class AkuvoxApiClient:
             hass=self.hass,
             auth_token=self._data.auth_token,
             token=self._data.token,
-            country_code=self.hass.config.country,
-            phone_number=self._data.phone_number):
+            country_code="",
+            phone_number=self._data.phone_number,
+            subdomain=self._data.subdomain):
             await self.async_retrieve_device_data()
             await self.async_retrieve_temp_keys_data()
             return True

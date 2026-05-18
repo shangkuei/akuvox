@@ -28,7 +28,7 @@ class AkuvoxEntity(Entity):
         self.client.init_api_with_data(
             hass=self.hass,
             host=host,
-            subdomain=None,
+            subdomain=self.get_saved_value("subdomain"),
             auth_token=auth_token,
             token=token,
             refresh_token=refresh_token,
