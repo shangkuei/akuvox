@@ -1,5 +1,7 @@
 """Helper functions."""
 
+import hashlib
+
 from .const import (
     # LOGGER,
     COUNTRY_PHONE,
@@ -59,3 +61,21 @@ class AkuvoxHelpers:
             if value.get("country") == country_name:
                 return value.get("phone_number")
         return None
+
+    def obfuscate_login_identifier(self, value: str) -> str:
+        """Shift letters and digits by +3 to match Akuvox login requests."""
+        transformed = []
+        for char in value:
+            if "a" <= char <= "z":
+                transformed.append(chr((ord(char) - ord("a") + 3) % 26 + ord("a")))
+            elif "A" <= char <= "Z":
+                transformed.append(chr((ord(char) - ord("A") + 3) % 26 + ord("A")))
+            elif "0" <= char <= "9":
+                transformed.append(str((int(char) + 3) % 10))
+            else:
+                transformed.append(char)
+        return "".join(transformed)
+
+    def get_password_hash(self, password: str) -> str:
+        """MD5 password hash used by the Akuvox email/password login flow."""
+        return hashlib.md5(password.encode("utf-8")).hexdigest()

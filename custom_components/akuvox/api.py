@@ -24,6 +24,7 @@ from .const import (
     SMS_LOGIN_API_VERSION,
     API_SMS_LOGIN,
     API_SERVERS_LIST,
+    API_LOGIN,
     REST_SERVER_API_VERSION,
     API_REST_SERVER_DATA,
     USERCONF_API_VERSION,
@@ -88,6 +89,32 @@ class AkuvoxApiClient:
         if stored_refresh_token and not self._data.refresh_token:
             self._data.refresh_token = stored_refresh_token
 
+        stored_auth_mode = await self._data.async_get_stored_data_for_key("auth_mode")
+        if stored_auth_mode and not self._data.auth_mode:
+            self._data.auth_mode = stored_auth_mode
+
+        stored_login_user = await self._data.async_get_stored_data_for_key("login_user")
+        if stored_login_user and not self._data.login_user:
+            self._data.login_user = stored_login_user
+
+        stored_password_hash = await self._data.async_get_stored_data_for_key("password_hash")
+        if stored_password_hash and not self._data.password_hash:
+            self._data.password_hash = stored_password_hash
+
+        if (
+            self._data.auth_mode == "family_member"
+            and self._data.login_user
+            and self._data.password_hash
+            and (not self._data.token or not self._data.host)
+        ):
+            if await self.async_family_member_login(
+                hass=self.hass,
+                login_user=self._data.login_user,
+                password_hash=self._data.password_hash,
+                subdomain=self._data.subdomain,
+            ) is False:
+                return False
+
         if self._data.refresh_token:
             await self.async_check_and_refresh_tokens(reason="startup")
 
@@ -116,6 +143,9 @@ class AkuvoxApiClient:
                            auth_token=None,
                            token=None,
                            refresh_token=None,
+                           auth_mode=None,
+                           login_user=None,
+                           password_hash=None,
                            phone_number=None,
                            country_code=None):
         """"Initialize values from saved data/options."""
@@ -129,6 +159,9 @@ class AkuvoxApiClient:
                 auth_token=auth_token, # type: ignore
                 token=token, # type: ignore
                 refresh_token=refresh_token, # type: ignore
+                auth_mode=auth_mode, # type: ignore
+                login_user=login_user, # type: ignore
+                password_hash=password_hash, # type: ignore
                 phone_number=phone_number, # type: ignore
                 country_code=country_code) # type: ignore
         else:
@@ -137,6 +170,9 @@ class AkuvoxApiClient:
             self._data.auth_token = auth_token if auth_token is not None else self._data.auth_token
             self._data.token = token if token is not None else self._data.token
             self._data.refresh_token = refresh_token if refresh_token is not None else self._data.refresh_token
+            self._data.auth_mode = auth_mode if auth_mode is not None else self._data.auth_mode
+            self._data.login_user = login_user if login_user is not None else self._data.login_user
+            self._data.password_hash = password_hash if password_hash is not None else self._data.password_hash
             self._data.phone_number = phone_number if phone_number is not None else self._data.phone_number
         self.hass = self.hass if self.hass else hass
 
@@ -259,6 +295,48 @@ class AkuvoxApiClient:
         LOGGER.error("❌ Unable to retrieve server list. Try sigining in again / check that your tokens are valid.")
         return False
 
+    async def async_family_member_login(
+        self,
+        hass: HomeAssistant,
+        login_user: str,
+        password_hash: str,
+        subdomain: str,
+    ) -> bool:
+        """Sign in using the family-member email/password flow."""
+        self.init_api_with_data(
+            hass=hass,
+            subdomain=subdomain,
+            auth_mode="family_member",
+            login_user=login_user,
+            password_hash=password_hash,
+        )
+        url = (
+            f"https://gate.{subdomain}.akuvox.com:{REST_SERVER_PORT}/"
+            f"{API_LOGIN}?user={login_user}&passwd={password_hash}&id_code=(null)"
+        )
+        headers = {
+            "api-version": "6.8",
+            "User-Agent": "VBell/7.20.5 (iPhone; iOS 26.1; Scale/2.00)",
+            "Accept": "application/json",
+            "Accept-Language": "en-US,en;q=0.9",
+        }
+        json_data = await self._async_api_wrapper(
+            method="get",
+            url=url,
+            headers=headers,
+            data={},
+        )
+        if json_data is None:
+            LOGGER.error("❌ Family-member login failed.")
+            return False
+
+        self._data.parse_sms_login_response(json_data)  # type: ignore
+        if "rest_server_https" in json_data:
+            self._data.host = json_data["rest_server_https"]
+
+        await self.async_store_tokens(update_last_refresh=False)
+        return True
+
     async def async_sms_sign_in(self, phone_number, country_code, sms_code) -> bool:
         """Sign user in with their phone number and SMS code."""
 
@@ -298,6 +376,11 @@ class AkuvoxApiClient:
 
     async def async_retrieve_user_data(self) -> bool:
         """Retrieve user devices and temp keys data."""
+        if self._data.auth_mode == "family_member":
+            if await self.async_retrieve_device_data():
+                await self.async_retrieve_temp_keys_data()
+                return True
+            return False
         if await self.async_make_servers_list_request(
             hass=self.hass,
             auth_token=self._data.auth_token,
@@ -352,6 +435,15 @@ class AkuvoxApiClient:
         )
         if json_data is None:
             if self._last_api_error:
+                if self._data.auth_mode == "family_member" and self._data.login_user and self._data.password_hash:
+                    LOGGER.warning("Akuvox refresh failed for family-member session; attempting re-login.")
+                    if await self.async_family_member_login(
+                        hass=self.hass,
+                        login_user=self._data.login_user,
+                        password_hash=self._data.password_hash,
+                        subdomain=self._data.subdomain,
+                    ):
+                        return await self.async_refresh_token(reason="post re-login refresh")
                 LOGGER.error("Akuvox token refresh failed with API error: %s", self._last_api_error)
             else:
                 LOGGER.error("Akuvox token refresh failed: empty response.")
@@ -733,6 +825,9 @@ class AkuvoxApiClient:
     def update_data(self, key, value):
         """Update the data model."""
         self._data.subdomain = value if key == "subdomain" else self._data.subdomain
+        self._data.auth_mode = value if key == "auth_mode" else self._data.auth_mode
+        self._data.login_user = value if key == "login_user" else self._data.login_user
+        self._data.password_hash = value if key == "password_hash" else self._data.password_hash
         self._data.auth_token = value if key == "auth_token" else self._data.auth_token
         self._data.token = value if key == "token" else self._data.token
         self._data.refresh_token = value if key == "refresh_token" else self._data.refresh_token
@@ -740,6 +835,9 @@ class AkuvoxApiClient:
 
     async def async_store_tokens(self, update_last_refresh: bool) -> None:
         """Persist the active Akuvox tokens to Home Assistant storage."""
+        await self._data.async_set_stored_data_for_key("auth_mode", self._data.auth_mode)
+        await self._data.async_set_stored_data_for_key("login_user", self._data.login_user)
+        await self._data.async_set_stored_data_for_key("password_hash", self._data.password_hash)
         await self._data.async_set_stored_data_for_key("auth_token", self._data.auth_token)
         await self._data.async_set_stored_data_for_key("token", self._data.token)
         await self._data.async_set_stored_data_for_key("refresh_token", self._data.refresh_token)

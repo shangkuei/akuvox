@@ -20,6 +20,9 @@ class AkuvoxEntity(Entity):
         self.client = client
 
         host = self.get_saved_value("host")
+        auth_mode = self.get_saved_value("auth_mode")
+        login_user = self.get_saved_value("login_user")
+        password_hash = self.get_saved_value("password_hash")
         auth_token = self.get_saved_value("auth_token")
         token = self.get_saved_value("token")
         refresh_token = self.get_saved_value("refresh_token")
@@ -29,6 +32,9 @@ class AkuvoxEntity(Entity):
             hass=self.hass,
             host=host,
             subdomain=self.get_saved_value("subdomain"),
+            auth_mode=auth_mode,
+            login_user=login_user,
+            password_hash=password_hash,
             auth_token=auth_token,
             token=token,
             refresh_token=refresh_token,

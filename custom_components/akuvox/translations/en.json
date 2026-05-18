@@ -6,7 +6,8 @@
                 "description": "Choose a sign-in method to connect to your Akuvox SmartPlus account:",
                 "menu_options": {
                     "sms_sign_in_warning": "1. SMS Verification (Recommended)",
-                    "app_tokens_sign_in": "2. App Tokens (Advanced)"
+                    "app_tokens_sign_in": "2. App Tokens (Advanced)",
+                    "family_member_sign_in": "3. Family Member Email/Password"
                 }
             },
             "sms_sign_in_warning": {
@@ -32,6 +33,15 @@
                     "auth_token": "Auth Token",
                     "refresh_token": "Refresh Token (optional)",
                     "subdomain": "Manually set the regional API subdomain"
+                }
+            },
+            "family_member_sign_in": {
+                "title": "Family Member Login",
+                "description": "Sign in with the separate family-member email/password account.",
+                "data": {
+                    "email": "Family Member Email",
+                    "password": "Family Member Password",
+                    "subdomain": "Regional API subdomain"
                 }
             },
             "verify_sms_code": {

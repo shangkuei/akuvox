@@ -56,7 +56,7 @@ class AkuvoxFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
 
         return self.async_show_menu(
             step_id="user",
-            menu_options=["sms_sign_in_warning", "app_tokens_sign_in"],
+            menu_options=["sms_sign_in_warning", "app_tokens_sign_in", "family_member_sign_in"],
             description_placeholders=user_input,
         )
 
@@ -65,10 +65,11 @@ class AkuvoxFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
         errors = {}
         sms_sign_in = "Continue sign-in via SMS Verification"
         app_tokens_sign_in = "Sign-in via app tokens"
+        family_member_sign_in = "Sign-in via family member email/password"
         data_schema = {
             "warning_option_selection": selector.selector({
                 "select": {
-                    "options": [sms_sign_in, app_tokens_sign_in],
+                    "options": [sms_sign_in, app_tokens_sign_in, family_member_sign_in],
                 }
             })
         }
@@ -87,6 +88,14 @@ class AkuvoxFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
                     return self.async_show_form(
                         step_id="app_tokens_sign_in",
                         data_schema=vol.Schema(self.get_app_tokens_sign_in_schema(user_input)),
+                        description_placeholders=user_input,
+                        last_step=False,
+                        errors=None
+                    )
+                if selection == family_member_sign_in:
+                    return self.async_show_form(
+                        step_id="family_member_sign_in",
+                        data_schema=vol.Schema(self.get_family_member_sign_in_schema(user_input)),
                         description_placeholders=user_input,
                         last_step=False,
                         errors=None
@@ -271,6 +280,78 @@ class AkuvoxFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
             last_step=True,
         )
 
+    async def async_step_family_member_sign_in(self, user_input=None):
+        """Sign in using the family-member email/password login flow."""
+        data_schema = self.get_family_member_sign_in_schema(user_input)
+        if user_input is not None:
+            email: str = user_input.get("email", "").strip()
+            password: str = user_input.get("password", "")
+            subdomain: str = user_input.get("subdomain", "Default")
+            subdomain = subdomain if subdomain != "Default" else "ucloud"
+
+            login_user = helpers.obfuscate_login_identifier(email.lower())
+            password_hash = helpers.get_password_hash(password)
+
+            self.data = {
+                "auth_mode": "family_member",
+                "login_user": login_user,
+                "password_hash": password_hash,
+                "subdomain": subdomain,
+            }
+
+            if all(len(value) > 0 for value in (email, password)):
+                login_successful = await self.akuvox_api_client.async_family_member_login(
+                    hass=self.hass,
+                    login_user=login_user,
+                    password_hash=password_hash,
+                    subdomain=subdomain,
+                )
+                if login_successful is True:
+                    refresh_successful = await self.akuvox_api_client.async_refresh_token(
+                        reason="initial family-member validation"
+                    )
+                    if refresh_successful is not True:
+                        return self.async_show_form(
+                            step_id="family_member_sign_in",
+                            data_schema=vol.Schema(self.get_family_member_sign_in_schema(user_input)),
+                            description_placeholders=user_input,
+                            last_step=True,
+                            errors={
+                                "base": "Family-member login succeeded but token rotation validation failed."
+                            }
+                        )
+
+                    self.data["host"] = self.akuvox_api_client._data.host
+                    self.data["token"] = self.akuvox_api_client._data.token
+                    self.data["refresh_token"] = self.akuvox_api_client._data.refresh_token
+
+                    await self.akuvox_api_client.async_retrieve_device_data()
+                    await self.akuvox_api_client.async_retrieve_temp_keys_data()
+                    devices_json = self.akuvox_api_client.get_devices_json()
+                    self.data.update(devices_json)
+
+                    return self.async_create_entry(
+                        title=self.akuvox_api_client.get_title(),
+                        data=self.data,
+                    )
+
+                return self.async_show_form(
+                    step_id="family_member_sign_in",
+                    data_schema=vol.Schema(self.get_family_member_sign_in_schema(user_input)),
+                    description_placeholders=user_input,
+                    last_step=True,
+                    errors={
+                        "base": "Sign in failed. Please check the values entered and try again."
+                    }
+                )
+
+        return self.async_show_form(
+            step_id="family_member_sign_in",
+            data_schema=vol.Schema(data_schema),
+            description_placeholders=user_input,
+            last_step=True,
+        )
+
     async def async_step_verify_sms_code(self, user_input=None):
         """Step 2: User enters the SMS code received on their phone for verifiation.
 
@@ -412,6 +493,35 @@ class AkuvoxFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
                                  mode=selector.SelectSelectorMode.DROPDOWN,
                                  custom_value=True),
                                  )
+        }
+
+    def get_family_member_sign_in_schema(self, user_input: dict = {}):
+        """Get the schema for family_member_sign_in step."""
+        user_input = user_input or {}
+        return {
+            vol.Required(
+                "email",
+                msg=None,
+                default=user_input.get("email", ""),
+                description="Family-member email address",
+            ): str,
+            vol.Required(
+                "password",
+                msg=None,
+                default=user_input.get("password", ""),
+                description="Family-member password",
+            ): str,
+            vol.Optional(
+                "subdomain",
+                default=user_input.get("subdomain", "ucloud"),  # type: ignore
+                description="Regional API subdomain",
+            ): selector.SelectSelector(
+                selector.SelectSelectorConfig(
+                    options=SUBDOMAINS_LIST,
+                    mode=selector.SelectSelectorMode.DROPDOWN,
+                    custom_value=True,
+                )
+            ),
         }
 
 class AkuvoxOptionsFlowHandler(config_entries.OptionsFlow):

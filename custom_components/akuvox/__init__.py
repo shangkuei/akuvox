@@ -116,10 +116,10 @@ async def async_update_configuration(hass: HomeAssistant, entry: ConfigEntry) ->
                 #                           value=value)
                 if value:
                     client.update_data(key, value)
-                    if key in ["auth_token", "token", "refresh_token"]:
+                    if key in ["auth_token", "token", "refresh_token", "password_hash"]:
                         await client._data.async_set_stored_data_for_key(key, value)
                     str_value: str = str(value)
-                    if key in ["auth_token", "token", "refresh_token"]:
+                    if key in ["auth_token", "token", "refresh_token", "password_hash"]:
                         length: int = len(str_value)
                         str_value = f"{str_value[0:3]}{'*'*int(length-6)}{str_value[int(length-3):length]}" # type: ignore
                     LOGGER.debug(" - %s = %s", key, str_value)

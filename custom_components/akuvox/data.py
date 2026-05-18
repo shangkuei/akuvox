@@ -30,6 +30,9 @@ class AkuvoxData:
     auth_token: str = ""
     token: str = ""
     refresh_token: str = ""
+    auth_mode: str = ""
+    login_user: str = ""
+    password_hash: str = ""
     phone_number: str = ""
     wait_for_image_url: bool = False
     rtsp_ip: str = ""
@@ -47,6 +50,9 @@ class AkuvoxData:
                  auth_token: str = None, # type: ignore
                  token: str = None, # type: ignore
                  refresh_token: str = None, # type: ignore
+                 auth_mode: str = None, # type: ignore
+                 login_user: str = None, # type: ignore
+                 password_hash: str = None, # type: ignore
                  country_code: str = None, # type: ignore
                  phone_number: str = None, # type: ignore
                  wait_for_image_url: bool = False):
@@ -57,6 +63,9 @@ class AkuvoxData:
         self.auth_token = auth_token if auth_token else self.get_value_for_key(entry, "auth_token", self.host) # type: ignore
         self.token = token if token else self.get_value_for_key(entry, "token", self.token) # type: ignore
         self.refresh_token = refresh_token if refresh_token else self.get_value_for_key(entry, "refresh_token", self.refresh_token) # type: ignore
+        self.auth_mode = auth_mode if auth_mode else self.get_value_for_key(entry, "auth_mode", self.auth_mode) # type: ignore
+        self.login_user = login_user if login_user else self.get_value_for_key(entry, "login_user", self.login_user) # type: ignore
+        self.password_hash = password_hash if password_hash else self.get_value_for_key(entry, "password_hash", self.password_hash) # type: ignore
         self.phone_number = phone_number if phone_number else self.get_value_for_key(entry, "phone_number", self.phone_number) # type: ignore
         self.wait_for_image_url = wait_for_image_url if wait_for_image_url is not None else bool(self.get_value_for_key(entry, "event_screenshot_options", False) == "wait") # type: ignore
 
@@ -247,6 +256,10 @@ class AkuvoxData:
         """Device data dictionary."""
         return {
             "host": self.host,
+            "subdomain": self.subdomain,
+            "auth_mode": self.auth_mode,
+            "login_user": self.login_user,
+            "password_hash": self.password_hash,
             "token": self.token,
             "auth_token": self.auth_token,
             "refresh_token": self.refresh_token,
