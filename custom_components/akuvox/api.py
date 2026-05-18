@@ -96,23 +96,6 @@ class AkuvoxApiClient:
             if await self.async_fetch_rest_server() is False:
                 return False
 
-        if self._data.rtsp_ip is None:
-            if self._data.host is not None and len(self._data.host) > 0:
-                if await self.async_make_servers_list_request(
-                    hass=self.hass,
-                    auth_token=self._data.auth_token,
-                    token=self._data.token,
-                    country_code=self.hass.config.country,
-                    phone_number=self._data.phone_number) is False:
-                    LOGGER.error("❌ API request for servers list failed.")
-                    return False
-            else:
-                LOGGER.error("❌ Unable to find API host address.")
-                return False
-
-        # Begin polling personal door log
-        await self.async_start_polling()
-
         return True
 
     async def async_start_polling(self):
@@ -188,9 +171,9 @@ class AkuvoxApiClient:
             subdomain=subdomain,
             country_code=country_code,
             phone_number=phone_number)
-        url = f"https://{self._data.host}/{API_SEND_SMS}".replace(".subdomain", f".{subdomain}")
-        LOGGER.debug("url = %s", url)
-        if await self.async_init_api():
+        if await self.async_fetch_rest_server():
+            url = f"https://{self._data.host}/{API_SEND_SMS}".replace(".subdomain", f".{subdomain}")
+            LOGGER.debug("url = %s", url)
             headers = {
                 "Host": self._data.host,
                 "Content-Type": "application/x-www-form-urlencoded",
@@ -236,9 +219,10 @@ class AkuvoxApiClient:
             subdomain=subdomain,
             auth_token=auth_token,
             token=token,
+            refresh_token=self._data.refresh_token,
             country_code=country_code,
             phone_number=phone_number)
-        if await self.async_init_api() is False:
+        if (self._data.host is None or len(self._data.host) == 0) and await self.async_fetch_rest_server() is False:
             return False
 
 
