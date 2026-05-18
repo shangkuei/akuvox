@@ -302,7 +302,7 @@ class AkuvoxApiClient:
         password_hash: str,
         subdomain: str,
     ) -> bool:
-        """Sign in using the family-member email/password flow."""
+        """Sign in using the family-member email/login-passwd flow."""
         self.init_api_with_data(
             hass=hass,
             subdomain=subdomain,
@@ -315,10 +315,13 @@ class AkuvoxApiClient:
             f"{API_LOGIN}?user={login_user}&passwd={password_hash}&id_code=(null)"
         )
         headers = {
-            "api-version": "6.8",
-            "User-Agent": "VBell/7.20.5 (iPhone; iOS 26.1; Scale/2.00)",
-            "Accept": "application/json",
-            "Accept-Language": "en-US,en;q=0.9",
+            "Host": f"gate.{subdomain}.akuvox.com:{REST_SERVER_PORT}",
+            "accept": "*/*",
+            "x-auth-token": "",
+            "api-version": "7.33",
+            "user-agent": "VBell/7.40.3 (iPhone; iOS 26.4.2; Scale/3.00)",
+            "priority": "u=3, i",
+            "accept-language": "en-US;q=1",
         }
         json_data = await self._async_api_wrapper(
             method="get",

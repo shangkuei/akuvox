@@ -7,7 +7,7 @@
                 "menu_options": {
                     "sms_sign_in_warning": "1. SMS Verification (Recommended)",
                     "app_tokens_sign_in": "2. App Tokens (Advanced)",
-                    "family_member_sign_in": "3. Family Member Email/Password"
+                    "family_member_sign_in": "3. Family Member Email + Passwd Token"
                 }
             },
             "sms_sign_in_warning": {
@@ -37,10 +37,10 @@
             },
             "family_member_sign_in": {
                 "title": "Family Member Login",
-                "description": "Sign in with the separate family-member email/password account.",
+                "description": "Sign in with the separate family-member account using the email plus the captured `passwd` query value from the successful SmartPlus `/login` request.",
                 "data": {
                     "email": "Family Member Email",
-                    "password": "Family Member Password",
+                    "password_hash": "Captured `passwd` Value",
                     "subdomain": "Regional API subdomain"
                 }
             },

@@ -110,14 +110,17 @@ class AkuvoxData:
     def parse_sms_login_response(self, json_data: dict):
         """Parse the sms_login API response."""
         if json_data is not None:
-            if "auth_token" in json_data:
-                self.auth_token = json_data["auth_token"]
-            if "token" in json_data:
-                self.token = json_data["token"]
-            if "refresh_token" in json_data:
-                self.refresh_token = json_data["refresh_token"]
-            if "rtmp_server" in json_data:
-                self.rtsp_ip = json_data["rtmp_server"].split(':')[0]
+            payload = json_data.get("datas", json_data)
+            if "auth_token" in payload:
+                self.auth_token = payload["auth_token"]
+            if "token" in payload:
+                self.token = payload["token"]
+            if "refresh_token" in payload:
+                self.refresh_token = payload["refresh_token"]
+            if "rtmp_server" in payload:
+                self.rtsp_ip = payload["rtmp_server"].split(':')[0]
+            if "rest_server_https" in payload:
+                self.host = payload["rest_server_https"]
 
     def parse_userconf_data(self, json_data: dict):
         """Parse the userconf API response."""

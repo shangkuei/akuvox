@@ -65,7 +65,7 @@ class AkuvoxFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
         errors = {}
         sms_sign_in = "Continue sign-in via SMS Verification"
         app_tokens_sign_in = "Sign-in via app tokens"
-        family_member_sign_in = "Sign-in via family member email/password"
+        family_member_sign_in = "Sign-in via family member email + passwd token"
         data_schema = {
             "warning_option_selection": selector.selector({
                 "select": {
@@ -281,16 +281,15 @@ class AkuvoxFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
         )
 
     async def async_step_family_member_sign_in(self, user_input=None):
-        """Sign in using the family-member email/password login flow."""
+        """Sign in using the family-member email + captured passwd token flow."""
         data_schema = self.get_family_member_sign_in_schema(user_input)
         if user_input is not None:
             email: str = user_input.get("email", "").strip()
-            password: str = user_input.get("password", "")
+            password_hash: str = user_input.get("password_hash", "").strip()
             subdomain: str = user_input.get("subdomain", "Default")
             subdomain = subdomain if subdomain != "Default" else "ucloud"
 
             login_user = helpers.obfuscate_login_identifier(email.lower())
-            password_hash = helpers.get_password_hash(password)
 
             self.data = {
                 "auth_mode": "family_member",
@@ -299,7 +298,7 @@ class AkuvoxFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
                 "subdomain": subdomain,
             }
 
-            if all(len(value) > 0 for value in (email, password)):
+            if all(len(value) > 0 for value in (email, password_hash)):
                 login_successful = await self.akuvox_api_client.async_family_member_login(
                     hass=self.hass,
                     login_user=login_user,
@@ -341,9 +340,9 @@ class AkuvoxFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
                     description_placeholders=user_input,
                     last_step=True,
                     errors={
-                        "base": "Sign in failed. Please check the values entered and try again."
-                    }
-                )
+                    "base": "Sign in failed. Please check the email, passwd value from Charles, and subdomain."
+                }
+            )
 
         return self.async_show_form(
             step_id="family_member_sign_in",
@@ -506,10 +505,10 @@ class AkuvoxFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
                 description="Family-member email address",
             ): str,
             vol.Required(
-                "password",
+                "password_hash",
                 msg=None,
-                default=user_input.get("password", ""),
-                description="Family-member password",
+                default=user_input.get("password_hash", ""),
+                description="Captured `passwd` query value from the successful SmartPlus family-member login request",
             ): str,
             vol.Optional(
                 "subdomain",
