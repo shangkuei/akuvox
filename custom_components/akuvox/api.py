@@ -343,8 +343,9 @@ class AkuvoxApiClient:
             "x-auth-token": self._data.token,
             "content-type": "application/json",
             "accept": "application/json",
+            "accept-language": "en-US,en;q=0.9",
             "api-version": "6.8",
-            "user-agent": "VBell/7.12.2 (iPhone; iOS 18.5; Scale/2.00)",
+            "user-agent": "VBell/7.20.5 (iPhone; iOS 26.1; Scale/2.00)",
         }
         data = json.dumps({
             "refresh_token": self._data.refresh_token,

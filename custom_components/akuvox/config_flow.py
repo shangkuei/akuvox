@@ -230,7 +230,7 @@ class AkuvoxFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
                             description_placeholders=user_input,
                             last_step=True,
                             errors={
-                                "base": "Token validation failed. The refresh_token did not successfully rotate the credentials."
+                                "base": "Token validation failed. The refresh_token did not successfully rotate the credentials. Check Home Assistant logs for the Akuvox refresh API response."
                             }
                         )
 
