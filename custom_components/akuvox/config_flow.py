@@ -65,7 +65,7 @@ class AkuvoxFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
         errors = {}
         sms_sign_in = "Continue sign-in via SMS Verification"
         app_tokens_sign_in = "Sign-in via app tokens"
-        family_member_sign_in = "Sign-in via family member email + passwd token"
+        family_member_sign_in = "Sign-in via family member tokens"
         data_schema = {
             "warning_option_selection": selector.selector({
                 "select": {
@@ -281,66 +281,67 @@ class AkuvoxFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
         )
 
     async def async_step_family_member_sign_in(self, user_input=None):
-        """Sign in using the family-member email + captured passwd token flow."""
+        """Sign in using a family-member token pair captured from SmartPlus."""
         data_schema = self.get_family_member_sign_in_schema(user_input)
         if user_input is not None:
-            email: str = user_input.get("email", "").strip()
-            password_hash: str = user_input.get("password_hash", "").strip()
+            token: str = user_input.get("token", "").strip()
+            refresh_token: str = user_input.get("refresh_token", "").strip()
             subdomain: str = user_input.get("subdomain", "Default")
             subdomain = subdomain if subdomain != "Default" else "ucloud"
-
-            login_user = helpers.obfuscate_login_identifier(email.lower())
+            host = f"rest.{subdomain}.akuvox.com:8443"
 
             self.data = {
                 "auth_mode": "family_member",
-                "login_user": login_user,
-                "password_hash": password_hash,
+                "host": host,
+                "token": token,
+                "refresh_token": refresh_token,
                 "subdomain": subdomain,
             }
 
-            if all(len(value) > 0 for value in (email, password_hash)):
-                login_successful = await self.akuvox_api_client.async_family_member_login(
+            if all(len(value) > 0 for value in (token, refresh_token)):
+                self.akuvox_api_client.init_api_with_data(
                     hass=self.hass,
-                    login_user=login_user,
-                    password_hash=password_hash,
+                    host=host,
+                    token=token,
+                    refresh_token=refresh_token,
+                    auth_mode="family_member",
                     subdomain=subdomain,
                 )
-                if login_successful is True:
-                    refresh_successful = await self.akuvox_api_client.async_refresh_token(
-                        reason="initial family-member validation"
-                    )
-                    if refresh_successful is not True:
-                        return self.async_show_form(
-                            step_id="family_member_sign_in",
-                            data_schema=vol.Schema(self.get_family_member_sign_in_schema(user_input)),
-                            description_placeholders=user_input,
-                            last_step=True,
-                            errors={
-                                "base": "Family-member login succeeded but token rotation validation failed."
-                            }
-                        )
-
-                    self.data["host"] = self.akuvox_api_client._data.host
-                    self.data["token"] = self.akuvox_api_client._data.token
-                    self.data["refresh_token"] = self.akuvox_api_client._data.refresh_token
-
-                    await self.akuvox_api_client.async_retrieve_device_data()
-                    await self.akuvox_api_client.async_retrieve_temp_keys_data()
-                    devices_json = self.akuvox_api_client.get_devices_json()
-                    self.data.update(devices_json)
-
-                    return self.async_create_entry(
-                        title=self.akuvox_api_client.get_title(),
-                        data=self.data,
+                refresh_successful = await self.akuvox_api_client.async_refresh_token(
+                    reason="initial family-member validation"
+                )
+                if refresh_successful is not True:
+                    return self.async_show_form(
+                        step_id="family_member_sign_in",
+                        data_schema=vol.Schema(self.get_family_member_sign_in_schema(user_input)),
+                        description_placeholders=user_input,
+                        last_step=True,
+                        errors={
+                            "base": "Family-member token validation failed. Capture a fresh token + refresh_token pair from SmartPlus and try again."
+                        }
                     )
 
-                return self.async_show_form(
-                    step_id="family_member_sign_in",
-                    data_schema=vol.Schema(self.get_family_member_sign_in_schema(user_input)),
-                    description_placeholders=user_input,
-                    last_step=True,
-                    errors={
-                    "base": "Sign in failed. Please check the email, passwd value from Charles, and subdomain."
+                self.data["host"] = self.akuvox_api_client._data.host
+                self.data["token"] = self.akuvox_api_client._data.token
+                self.data["refresh_token"] = self.akuvox_api_client._data.refresh_token
+
+                await self.akuvox_api_client.async_retrieve_device_data()
+                await self.akuvox_api_client.async_retrieve_temp_keys_data()
+                devices_json = self.akuvox_api_client.get_devices_json()
+                self.data.update(devices_json)
+
+                return self.async_create_entry(
+                    title=self.akuvox_api_client.get_title(),
+                    data=self.data,
+                )
+
+            return self.async_show_form(
+                step_id="family_member_sign_in",
+                data_schema=vol.Schema(self.get_family_member_sign_in_schema(user_input)),
+                description_placeholders=user_input,
+                last_step=True,
+                errors={
+                    "base": "Please enter the family-member token and refresh_token."
                 }
             )
 
@@ -499,16 +500,16 @@ class AkuvoxFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
         user_input = user_input or {}
         return {
             vol.Required(
-                "email",
+                "token",
                 msg=None,
-                default=user_input.get("email", ""),
-                description="Family-member email address",
+                default=user_input.get("token", DEFAULT_TOKEN),
+                description="Token from the successful SmartPlus family-member login response",
             ): str,
             vol.Required(
-                "password_hash",
+                "refresh_token",
                 msg=None,
-                default=user_input.get("password_hash", ""),
-                description="Captured `passwd` query value from the successful SmartPlus family-member login request",
+                default=user_input.get("refresh_token", DEFAULT_REFRESH_TOKEN),
+                description="Refresh token from the successful SmartPlus family-member login response",
             ): str,
             vol.Optional(
                 "subdomain",
