@@ -77,5 +77,6 @@ class AkuvoxHelpers:
         return "".join(transformed)
 
     def get_password_hash(self, password: str) -> str:
-        """MD5 password hash used by the Akuvox email/password login flow."""
-        return hashlib.md5(password.encode("utf-8")).hexdigest()
+        """Double MD5 password hash used by the Akuvox family-member login flow."""
+        first_pass = hashlib.md5(password.encode("utf-8")).hexdigest()
+        return hashlib.md5(first_pass.encode("utf-8")).hexdigest()
