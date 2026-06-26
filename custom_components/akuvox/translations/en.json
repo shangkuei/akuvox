@@ -34,11 +34,11 @@
                 }
             },
             "family_member_sign_in": {
-                "title": "Family Member Tokens",
-                "description": "Use the `token` and `refresh_token` from the successful SmartPlus family-member `/login` response.",
+                "title": "Family Member (Username & Password)",
+                "description": "Sign in with your SmartPlus family-member account username and password.",
                 "data": {
-                    "token": "Family Member Token",
-                    "refresh_token": "Family Member Refresh Token",
+                    "username": "Username",
+                    "password": "Password",
                     "subdomain": "Regional API subdomain"
                 }
             },
