@@ -35,7 +35,7 @@ class AkuvoxData:
     password_hash: str = ""
     phone_number: str = ""
     wait_for_image_url: bool = False
-    rtsp_ip: str = ""
+    rtsp_server: str = ""
     project_name: str = ""
     camera_data = []
     door_relay_data = []
@@ -118,7 +118,7 @@ class AkuvoxData:
             if "refresh_token" in payload:
                 self.refresh_token = payload["refresh_token"]
             if "rtmp_server" in payload:
-                self.rtsp_ip = payload["rtmp_server"].split(':')[0]
+                self.rtsp_server = payload["rtmp_server"]
             if "rest_server_https" in payload:
                 self.host = payload["rest_server_https"]
 
@@ -139,7 +139,7 @@ class AkuvoxData:
                         password = dev_data["rtsp_pwd"]
                         camera_dict = {
                             "name": name,
-                            "video_url": f"rtsp://ak:{password}@{self.rtsp_ip}:554/{mac}"
+                            "video_url": f"rtsp://ak:{password}@{self.rtsp_server}/{mac}"
                         }
                         self.camera_data.append(camera_dict)
 
