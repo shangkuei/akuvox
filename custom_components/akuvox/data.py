@@ -74,15 +74,18 @@ class AkuvoxData:
         # explicitly or stored on the entry; otherwise the stored value (e.g.
         # "scloud") would be clobbered by the country default ("ecloud").
         if not self.subdomain and not country_code:
-            try:
-                if entry.data:
+            entry_data = {}
+            if entry is not None:
+                if hasattr(entry, "data") and entry.data:
                     entry_data = dict(entry.data)
-                    country_name_code = str(entry_data.get("country", hass.config.country))
-                    if country_name_code in LOCATIONS_DICT:
-                        self.location_dict = LOCATIONS_DICT.get(country_name_code) # type: ignore
-                        self.subdomain = self.location_dict.get("subdomain", "ecloud") # type: ignore
-            except Exception as error:
-                LOGGER.debug("Unable to use country due to error: %s", error)
+                elif isinstance(entry, dict):
+                    # get_value_for_key reads dict entries from "configured".
+                    entry_data = entry.get("configured", entry)
+            default_country = self.hass.config.country if self.hass and self.hass.config else ""
+            country_name_code = str(entry_data.get("country") or default_country or "")
+            if country_name_code in LOCATIONS_DICT:
+                self.location_dict = LOCATIONS_DICT.get(country_name_code) # type: ignore
+                self.subdomain = self.location_dict.get("subdomain", "ecloud") # type: ignore
         if not self.subdomain:
             self.subdomain = "ecloud"
 

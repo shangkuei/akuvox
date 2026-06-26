@@ -74,7 +74,7 @@ class AkuvoxCameraEntity(GenericCamera):
                     CONF_LIMIT_REFETCH_TO_URL_CHANGE: True,
                     CONF_FRAMERATE: 2,
                     CONF_VERIFY_SSL: False,
-                    CONF_RTSP_TRANSPORT: "udp",
+                    CONF_RTSP_TRANSPORT: "tcp",
                 },
             },
             identifier=name,
