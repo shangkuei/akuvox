@@ -303,6 +303,8 @@ class AkuvoxApiClient:
         subdomain: str,
     ) -> bool:
         """Sign in using the family-member email/login-passwd flow."""
+        LOGGER.debug("📡 Family-member login (subdomain=%s, login_user=%s)",
+                     subdomain, login_user)
         self.init_api_with_data(
             hass=hass,
             subdomain=subdomain,
