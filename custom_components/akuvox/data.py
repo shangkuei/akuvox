@@ -119,6 +119,12 @@ class AkuvoxData:
                 self.refresh_token = payload["refresh_token"]
             if "rtmp_server" in payload:
                 self.rtsp_ip = payload["rtmp_server"].split(':')[0]
+                LOGGER.debug("🎥 rtmp_server=%s -> rtsp_ip=%s",
+                             payload["rtmp_server"], self.rtsp_ip)
+            else:
+                LOGGER.warning(
+                    "⚠️ No 'rtmp_server' in login response; camera RTSP host will be "
+                    "empty. Response keys: %s", list(payload.keys()))
             if "rest_server_https" in payload:
                 self.host = payload["rest_server_https"]
 
@@ -137,6 +143,15 @@ class AkuvoxData:
                     # Camera
                     if "location" in dev_data and "rtsp_pwd" in dev_data and "mac" in dev_data:
                         password = dev_data["rtsp_pwd"]
+                        if not self.rtsp_ip:
+                            LOGGER.warning(
+                                "⚠️ rtsp_ip is empty while building the camera URL for "
+                                "'%s'; the stream host will be missing (rtsp://…@:554/%s). "
+                                "The login response did not provide 'rtmp_server'.",
+                                name, mac)
+                        else:
+                            LOGGER.debug("🎥 camera '%s' stream host=%s mac=%s",
+                                         name, self.rtsp_ip, mac)
                         camera_dict = {
                             "name": name,
                             "video_url": f"rtsp://ak:{password}@{self.rtsp_ip}:554/{mac}"
