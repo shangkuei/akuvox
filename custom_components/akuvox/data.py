@@ -111,7 +111,6 @@ class AkuvoxData:
         """Parse the sms_login API response."""
         if json_data is not None:
             payload = json_data.get("datas", json_data)
-            LOGGER.debug("🔎 login/servers_list response keys: %s", list(payload.keys()))
             if "auth_token" in payload:
                 self.auth_token = payload["auth_token"]
             if "token" in payload:
@@ -140,8 +139,6 @@ class AkuvoxData:
                 for dev_data in json_data["dev_list"]:
                     name = dev_data["location"].strip()
                     mac = dev_data["mac"]
-                    LOGGER.debug("🔎 dev_list entry '%s' keys: %s",
-                                 name, list(dev_data.keys()))
 
                     # Camera
                     if "location" in dev_data and "rtsp_pwd" in dev_data and "mac" in dev_data:
