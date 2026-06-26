@@ -79,8 +79,9 @@ class AkuvoxData:
                 if hasattr(entry, "data") and entry.data:
                     entry_data = dict(entry.data)
                 elif isinstance(entry, dict):
-                    entry_data = entry
-            default_country = hass.config.country if hass and hass.config else ""
+                    # get_value_for_key reads dict entries from "configured".
+                    entry_data = entry.get("configured", entry)
+            default_country = self.hass.config.country if self.hass and self.hass.config else ""
             country_name_code = str(entry_data.get("country") or default_country or "")
             if country_name_code in LOCATIONS_DICT:
                 self.location_dict = LOCATIONS_DICT.get(country_name_code) # type: ignore
