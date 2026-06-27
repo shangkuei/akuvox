@@ -380,6 +380,23 @@ class AkuvoxApiClient:
     async def async_retrieve_user_data(self) -> bool:
         """Retrieve user devices and temp keys data."""
         if self._data.auth_mode == "family_member":
+            # The camera stream host (rtsp_ip) is only provided by the /login
+            # response. A freshly initialized client (on setup/reload) starts
+            # without it, and the family-member path otherwise skips login, so
+            # log in again before building camera URLs — otherwise they end up
+            # with an empty host (rtsp://…@:554/<mac>).
+            if (
+                not self._data.rtsp_ip
+                and self._data.login_user
+                and self._data.password_hash
+            ):
+                if await self.async_family_member_login(
+                    hass=self.hass,
+                    login_user=self._data.login_user,
+                    password_hash=self._data.password_hash,
+                    subdomain=self._data.subdomain,
+                ) is False:
+                    return False
             if await self.async_retrieve_device_data():
                 await self.async_retrieve_temp_keys_data()
                 return True
