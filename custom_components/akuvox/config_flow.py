@@ -56,7 +56,7 @@ class AkuvoxFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
         sign_in_options = [
             selector.SelectOptionDict(value="sms", label="1. SMS Verification (Recommended)"),
             selector.SelectOptionDict(value="app_tokens", label="2. App Tokens (Advanced)"),
-            selector.SelectOptionDict(value="family_tokens", label="3. Family Member Tokens"),
+            selector.SelectOptionDict(value="family_tokens", label="3. Family Member (Username & Password)"),
         ]
         data_schema = vol.Schema({
             vol.Required(
@@ -92,7 +92,7 @@ class AkuvoxFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
         errors = {}
         sms_sign_in = "Continue sign-in via SMS Verification"
         app_tokens_sign_in = "Sign-in via app tokens"
-        family_member_sign_in = "Sign-in via family member tokens"
+        family_member_sign_in = "Sign-in via family member username & password"
         data_schema = {
             "warning_option_selection": selector.selector({
                 "select": {
@@ -308,49 +308,48 @@ class AkuvoxFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
         )
 
     async def async_step_family_member_sign_in(self, user_input=None):
-        """Sign in using a family-member token pair captured from SmartPlus."""
+        """Sign in using a family-member username and password."""
         data_schema = self.get_family_member_sign_in_schema(user_input)
         if user_input is not None:
-            token: str = user_input.get("token", "").strip()
-            refresh_token: str = user_input.get("refresh_token", "").strip()
+            username: str = user_input.get("username", "").strip()
+            password: str = user_input.get("password", "")
             subdomain: str = user_input.get("subdomain", "Default")
             subdomain = subdomain if subdomain != "Default" else "ucloud"
-            host = f"rest.{subdomain}.akuvox.com:8443"
 
-            self.data = {
-                "auth_mode": "family_member",
-                "host": host,
-                "token": token,
-                "refresh_token": refresh_token,
-                "subdomain": subdomain,
-            }
+            if all(len(value) > 0 for value in (username, password)):
+                # Akuvox obfuscates the username (ROT3) and double-MD5s the
+                # password before sending them to the /login endpoint.
+                login_user = helpers.obfuscate_login_identifier(username)
+                password_hash = helpers.get_password_hash(password)
 
-            if all(len(value) > 0 for value in (token, refresh_token)):
-                self.akuvox_api_client.init_api_with_data(
+                login_successful = await self.akuvox_api_client.async_family_member_login(
                     hass=self.hass,
-                    host=host,
-                    token=token,
-                    refresh_token=refresh_token,
-                    auth_mode="family_member",
+                    login_user=login_user,
+                    password_hash=password_hash,
                     subdomain=subdomain,
                 )
-                refresh_successful = await self.akuvox_api_client.async_refresh_token(
-                    reason="initial family-member validation"
-                )
-                if refresh_successful is not True:
+                if login_successful is not True:
                     return self.async_show_form(
                         step_id="family_member_sign_in",
                         data_schema=vol.Schema(self.get_family_member_sign_in_schema(user_input)),
                         description_placeholders=user_input,
                         last_step=True,
                         errors={
-                            "base": "Family-member token validation failed. Capture a fresh token + refresh_token pair from SmartPlus and try again."
+                            "base": "Family-member sign-in failed. Check your username and password and try again."
                         }
                     )
 
-                self.data["host"] = self.akuvox_api_client._data.host
-                self.data["token"] = self.akuvox_api_client._data.token
-                self.data["refresh_token"] = self.akuvox_api_client._data.refresh_token
+                # async_family_member_login populates host/token/refresh_token
+                # (and rtsp_ip) from the login response.
+                self.data = {
+                    "auth_mode": "family_member",
+                    "login_user": login_user,
+                    "password_hash": password_hash,
+                    "subdomain": subdomain,
+                    "host": self.akuvox_api_client._data.host,
+                    "token": self.akuvox_api_client._data.token,
+                    "refresh_token": self.akuvox_api_client._data.refresh_token,
+                }
 
                 await self.akuvox_api_client.async_retrieve_device_data()
                 await self.akuvox_api_client.async_retrieve_temp_keys_data()
@@ -368,7 +367,7 @@ class AkuvoxFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
                 description_placeholders=user_input,
                 last_step=True,
                 errors={
-                    "base": "Please enter the family-member token and refresh_token."
+                    "base": "Please enter both your family-member username and password."
                 }
             )
 
@@ -527,15 +526,16 @@ class AkuvoxFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
         user_input = user_input or {}
         return {
             vol.Required(
-                "token",
-                msg=None,
-                default=user_input.get("token", DEFAULT_TOKEN),  # type: ignore
-                description="Token from the successful SmartPlus family-member login response"): str,
+                "username",
+                default=user_input.get("username", ""),  # type: ignore
+                description="Your SmartPlus family-member account username"): str,
             vol.Required(
-                "refresh_token",
-                msg=None,
-                default=user_input.get("refresh_token", DEFAULT_REFRESH_TOKEN),  # type: ignore
-                description="Refresh token from the successful SmartPlus family-member login response"): str,
+                "password",
+                description="Your SmartPlus family-member account password"):
+                selector.TextSelector(
+                    selector.TextSelectorConfig(
+                        type=selector.TextSelectorType.PASSWORD)
+                ),
             vol.Optional("subdomain",
                          default=user_input.get("subdomain", "ucloud"),  # type: ignore
                          description="Regional API subdomain"):
