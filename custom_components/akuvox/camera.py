@@ -7,6 +7,14 @@ from homeassistant.helpers.entity import DeviceInfo
 from homeassistant.const import ATTR_IDENTIFIERS, CONF_NAME, CONF_VERIFY_SSL
 from homeassistant.core import HomeAssistant
 from homeassistant.components.generic.camera import GenericCamera
+from homeassistant.components.generic.const import (
+    CONF_CONTENT_TYPE,
+    CONF_FRAMERATE,
+    CONF_LIMIT_REFETCH_TO_URL_CHANGE,
+    CONF_STREAM_SOURCE,
+    SECTION_ADVANCED,
+)
+from homeassistant.components.stream import CONF_RTSP_TRANSPORT
 
 from .const import DOMAIN, LOGGER, NAME, VERSION, DATA_STORAGE_KEY
 
@@ -60,12 +68,14 @@ class AkuvoxCameraEntity(GenericCamera):
             device_info={
                 ATTR_IDENTIFIERS: {(DOMAIN, name)},
                 CONF_NAME: name,
-                "stream_source": rtsp_url,
-                "limit_refetch_to_url_change": True,
-                "framerate": 2,
-                "content_type": "",
-                CONF_VERIFY_SSL: False,
-                "rtsp_transport": "udp"
+                CONF_STREAM_SOURCE: rtsp_url,
+                CONF_CONTENT_TYPE: "",
+                SECTION_ADVANCED: {
+                    CONF_LIMIT_REFETCH_TO_URL_CHANGE: True,
+                    CONF_FRAMERATE: 5,
+                    CONF_VERIFY_SSL: False,
+                    CONF_RTSP_TRANSPORT: "udp",
+                },
             },
             identifier=name,
             title=name,
