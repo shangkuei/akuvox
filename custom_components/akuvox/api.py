@@ -137,9 +137,8 @@ class AkuvoxApiClient:
 
     async def async_stop_polling(self):
         """Stop polling the personal door log API."""
-        poller = getattr(self, "door_log_poller", None)
-        if poller is not None:
-            await poller.async_stop()
+        if self.door_log_poller is not None:
+            await self.door_log_poller.async_stop()
             self.door_log_poller = None
 
     def init_api_with_data(self,

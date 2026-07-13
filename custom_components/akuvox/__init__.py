@@ -55,11 +55,13 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
 async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Handle removal of an entry."""
-    coordinator: AkuvoxDataUpdateCoordinator | None = hass.data[DOMAIN].get(entry.entry_id)
-    if coordinator is not None:
-        await coordinator.client.async_stop_polling()
+    # Only tear down the poller once the platforms have actually unloaded, so a
+    # failed unload leaves the entry (and its poller) intact instead of running
+    # without a poller. Use .get/.pop to stay safe for a partially set-up entry.
     if unloaded := await hass.config_entries.async_unload_platforms(entry, PLATFORMS):
-        hass.data[DOMAIN].pop(entry.entry_id)
+        coordinator: AkuvoxDataUpdateCoordinator | None = hass.data.get(DOMAIN, {}).pop(entry.entry_id, None)
+        if coordinator is not None:
+            await coordinator.client.async_stop_polling()
     return unloaded
 
 
