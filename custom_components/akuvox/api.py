@@ -56,7 +56,7 @@ class AkuvoxApiClient:
 
     _data: AkuvoxData = None # type: ignore
     hass: HomeAssistant
-    door_log_poller: DoorLogPoller
+    door_log_poller: DoorLogPoller | None = None
 
     def __init__(
         self,
@@ -140,6 +140,7 @@ class AkuvoxApiClient:
         poller = getattr(self, "door_log_poller", None)
         if poller is not None:
             await poller.async_stop()
+            self.door_log_poller = None
 
     def init_api_with_data(self,
                            hass: HomeAssistant,
