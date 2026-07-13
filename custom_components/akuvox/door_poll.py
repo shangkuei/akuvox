@@ -32,8 +32,18 @@ class DoorLogPoller:
                              str(self.interval),
                              "" if self.interval == 0 else "s")
                 self.is_polling = True
-                self._task = asyncio.create_task(
-                    self.async_retrieve_personal_door_log()) # type: ignore
+                # Use an HA-tracked background task so the loop is tied to the
+                # Home Assistant lifecycle and any unexpected exit is surfaced.
+                self._task = self.hass.async_create_background_task(
+                    self._async_run(),
+                    name="akuvox_door_log_poller")
+
+    async def _async_run(self):
+        """Run the polling loop, always clearing is_polling when it exits."""
+        try:
+            await self.async_retrieve_personal_door_log() # type: ignore
+        finally:
+            self.is_polling = False
 
     async def async_stop(self):
         """Stop polling the personal door log."""

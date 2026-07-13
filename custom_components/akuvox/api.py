@@ -581,18 +581,27 @@ class AkuvoxApiClient:
         LOGGER.error("❌ Unable to retrieve user's temporary key list.")
         return None
 
-    async def async_retrieve_personal_door_log(self) -> bool:
+    async def async_retrieve_personal_door_log(self) -> None:
         """Request and parse the user's door log every 2 seconds."""
         while True:
-            # Get the latest pesonal door log
-            json_data = await self.async_get_personal_door_log()
-            if json_data is not None:
-                new_door_log = await self._data.async_parse_personal_door_log(json_data)
-                if new_door_log is not None:
-                    # Fire HA event
-                    LOGGER.debug("🚪 New door open event occurred. Firing akuvox_door_update event")
-                    event_name = "akuvox_door_update"
-                    self.hass.bus.async_fire(event_name, new_door_log)
+            try:
+                # Get the latest pesonal door log
+                json_data = await self.async_get_personal_door_log()
+                if json_data is not None:
+                    new_door_log = await self._data.async_parse_personal_door_log(json_data)
+                    if new_door_log is not None:
+                        # Fire HA event
+                        LOGGER.debug("🚪 New door open event occurred. Firing akuvox_door_update event")
+                        event_name = "akuvox_door_update"
+                        self.hass.bus.async_fire(event_name, new_door_log)
+            except asyncio.CancelledError:
+                # Poller is being stopped; let the cancellation propagate.
+                raise
+            except Exception as error:  # pylint: disable=broad-except
+                # Never let a transient error (network timeout, parse issue,
+                # etc.) kill the loop, or door events would stop firing until
+                # the integration is reloaded.
+                LOGGER.warning("Error while polling personal door log: %s", error)
             await asyncio.sleep(2)  # Wait for 2 seconds before calling again
 
     async def async_get_personal_door_log(self):
