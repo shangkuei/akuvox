@@ -44,6 +44,11 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
     entry.async_on_unload(entry.add_update_listener(async_reload_entry))
 
+    # Start polling the personal door log so that `akuvox_door_update` events
+    # are fired. Without this the poller only ran after an options reload, so
+    # the event never fired on a fresh setup or after a Home Assistant restart.
+    await async_start_polling(hass)
+
     return True
 
 
@@ -71,9 +76,9 @@ async def async_stop_polling(hass: HomeAssistant):
     await api_client.async_stop_polling()
 
 async def async_start_polling(hass: HomeAssistant):
-    """Stop polling the personal door log API."""
+    """Start polling the personal door log API."""
     api_client: AkuvoxApiClient = get_api_client(hass=hass) # type: ignore
-    await api_client.async_start_polling_personal_door_log()
+    await api_client.async_start_polling()
 
 def get_api_client(hass: HomeAssistant):
     """Akuvox API Client."""

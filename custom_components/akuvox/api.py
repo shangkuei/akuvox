@@ -127,14 +127,19 @@ class AkuvoxApiClient:
 
     async def async_start_polling(self):
         """Start polling the personal door log API."""
-        self.door_log_poller: DoorLogPoller = DoorLogPoller(
+        # Stop any existing poller first so we never run two loops at once
+        # (e.g. after a reload triggers setup + start again).
+        await self.async_stop_polling()
+        self.door_log_poller = DoorLogPoller(
             hass=self.hass,
             poll_function=self.async_retrieve_personal_door_log)
         await self.door_log_poller.async_start()
 
     async def async_stop_polling(self):
         """Stop polling the personal door log API."""
-        await self.door_log_poller.async_stop()
+        poller = getattr(self, "door_log_poller", None)
+        if poller is not None:
+            await poller.async_stop()
 
     def init_api_with_data(self,
                            hass: HomeAssistant,
@@ -575,11 +580,6 @@ class AkuvoxApiClient:
 
         LOGGER.error("❌ Unable to retrieve user's temporary key list.")
         return None
-
-    async def async_start_polling_personal_door_log(self):
-        """Poll the server contineously for the latest personal door log."""
-        # Make sure only 1 instance of the door log polling is running
-        self.hass.async_create_task(self.async_retrieve_personal_door_log())
 
     async def async_retrieve_personal_door_log(self) -> bool:
         """Request and parse the user's door log every 2 seconds."""
