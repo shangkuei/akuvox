@@ -631,8 +631,14 @@ class AkuvoxApiClient:
                                                         headers=headers,
                                                         data=data) # type: ignore
 
-        # Response empty, try changing app type "single" <--> "community"
-        if json_data is not None and len(json_data) == 0:
+        # The door log is served under either the "community" or "single" app
+        # path depending on the account type. Retry on the other path when the
+        # first attempt came back empty (HTTP 200 + []) OR the endpoint was not
+        # found on this host (single-family "scloud" accounts 404 under the
+        # "community" path). Skip the swap for token errors, which are handled
+        # by the refresh-and-retry below.
+        if (json_data is not None and len(json_data) == 0) or \
+                (json_data is None and not self.has_token_error()):
             self.switch_activities_host()
             host = self.get_activities_host()
             url = f"https://{host}/{API_GET_PERSONAL_DOOR_LOG}"
