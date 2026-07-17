@@ -44,42 +44,35 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
     entry.async_on_unload(entry.add_update_listener(async_reload_entry))
 
+    # Start polling the personal door log so that `akuvox_door_update` events
+    # are fired. Without this the poller only ran after an options reload, so
+    # the event never fired on a fresh setup or after a Home Assistant restart.
+    # Start it on this entry's own client so multiple entries stay independent.
+    await coordinator.client.async_start_polling()
+
     return True
 
 
 async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Handle removal of an entry."""
-    await async_stop_polling(hass)
+    # Only tear down the poller once the platforms have actually unloaded, so a
+    # failed unload leaves the entry (and its poller) intact instead of running
+    # without a poller. Use .get/.pop to stay safe for a partially set-up entry.
     if unloaded := await hass.config_entries.async_unload_platforms(entry, PLATFORMS):
-        hass.data[DOMAIN].pop(entry.entry_id)
+        coordinator: AkuvoxDataUpdateCoordinator | None = hass.data.get(DOMAIN, {}).pop(entry.entry_id, None)
+        if coordinator is not None:
+            await coordinator.client.async_stop_polling()
     return unloaded
 
 
 async def async_reload_entry(hass: HomeAssistant, entry: ConfigEntry) -> None:
-    """Reload config entry."""
-    await async_stop_polling(hass)
-    await async_unload_entry(hass, entry)
-    await async_setup_entry(hass, entry)
-    await async_update_configuration(hass, entry)
-    await async_start_polling(hass)
+    """Reload config entry.
 
-# Polling
-
-async def async_stop_polling(hass: HomeAssistant):
-    """Stop polling the personal door log API."""
-    api_client: AkuvoxApiClient = get_api_client(hass=hass) # type: ignore
-    await api_client.async_stop_polling()
-
-async def async_start_polling(hass: HomeAssistant):
-    """Stop polling the personal door log API."""
-    api_client: AkuvoxApiClient = get_api_client(hass=hass) # type: ignore
-    await api_client.async_start_polling_personal_door_log()
-
-def get_api_client(hass: HomeAssistant):
-    """Akuvox API Client."""
-    for _key, value in hass.data[DOMAIN].items():
-        coordinator: AkuvoxDataUpdateCoordinator = value
-        return coordinator.client
+    Delegate to Home Assistant's built-in reload, which unloads (stopping the
+    poller) and sets the entry back up (starting the poller once). Doing the
+    lifecycle steps manually here restarted the poller twice.
+    """
+    await hass.config_entries.async_reload(entry.entry_id)
 
 # Integration options
 

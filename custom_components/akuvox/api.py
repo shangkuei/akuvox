@@ -56,7 +56,7 @@ class AkuvoxApiClient:
 
     _data: AkuvoxData = None # type: ignore
     hass: HomeAssistant
-    door_log_poller: DoorLogPoller
+    door_log_poller: DoorLogPoller | None = None
 
     def __init__(
         self,
@@ -127,14 +127,19 @@ class AkuvoxApiClient:
 
     async def async_start_polling(self):
         """Start polling the personal door log API."""
-        self.door_log_poller: DoorLogPoller = DoorLogPoller(
+        # Stop any existing poller first so we never run two loops at once
+        # (e.g. after a reload triggers setup + start again).
+        await self.async_stop_polling()
+        self.door_log_poller = DoorLogPoller(
             hass=self.hass,
             poll_function=self.async_retrieve_personal_door_log)
         await self.door_log_poller.async_start()
 
     async def async_stop_polling(self):
         """Stop polling the personal door log API."""
-        await self.door_log_poller.async_stop()
+        if self.door_log_poller is not None:
+            await self.door_log_poller.async_stop()
+            self.door_log_poller = None
 
     def init_api_with_data(self,
                            hass: HomeAssistant,
@@ -576,23 +581,27 @@ class AkuvoxApiClient:
         LOGGER.error("❌ Unable to retrieve user's temporary key list.")
         return None
 
-    async def async_start_polling_personal_door_log(self):
-        """Poll the server contineously for the latest personal door log."""
-        # Make sure only 1 instance of the door log polling is running
-        self.hass.async_create_task(self.async_retrieve_personal_door_log())
-
-    async def async_retrieve_personal_door_log(self) -> bool:
+    async def async_retrieve_personal_door_log(self) -> None:
         """Request and parse the user's door log every 2 seconds."""
         while True:
-            # Get the latest pesonal door log
-            json_data = await self.async_get_personal_door_log()
-            if json_data is not None:
-                new_door_log = await self._data.async_parse_personal_door_log(json_data)
-                if new_door_log is not None:
-                    # Fire HA event
-                    LOGGER.debug("🚪 New door open event occurred. Firing akuvox_door_update event")
-                    event_name = "akuvox_door_update"
-                    self.hass.bus.async_fire(event_name, new_door_log)
+            try:
+                # Get the latest pesonal door log
+                json_data = await self.async_get_personal_door_log()
+                if json_data is not None:
+                    new_door_log = await self._data.async_parse_personal_door_log(json_data)
+                    if new_door_log is not None:
+                        # Fire HA event
+                        LOGGER.debug("🚪 New door open event occurred. Firing akuvox_door_update event")
+                        event_name = "akuvox_door_update"
+                        self.hass.bus.async_fire(event_name, new_door_log)
+            except asyncio.CancelledError:
+                # Poller is being stopped; let the cancellation propagate.
+                raise
+            except Exception as error:  # pylint: disable=broad-except
+                # Never let a transient error (network timeout, parse issue,
+                # etc.) kill the loop, or door events would stop firing until
+                # the integration is reloaded.
+                LOGGER.warning("Error while polling personal door log: %s", error)
             await asyncio.sleep(2)  # Wait for 2 seconds before calling again
 
     async def async_get_personal_door_log(self):
@@ -622,8 +631,14 @@ class AkuvoxApiClient:
                                                         headers=headers,
                                                         data=data) # type: ignore
 
-        # Response empty, try changing app type "single" <--> "community"
-        if json_data is not None and len(json_data) == 0:
+        # The door log is served under either the "community" or "single" app
+        # path depending on the account type. Retry on the other path when the
+        # first attempt came back empty (HTTP 200 + []) OR the endpoint was not
+        # found on this host (single-family "scloud" accounts 404 under the
+        # "community" path). Skip the swap for token errors, which are handled
+        # by the refresh-and-retry below.
+        if (json_data is not None and len(json_data) == 0) or \
+                (json_data is None and not self.has_token_error()):
             self.switch_activities_host()
             host = self.get_activities_host()
             url = f"https://{host}/{API_GET_PERSONAL_DOOR_LOG}"
